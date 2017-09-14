@@ -1,6 +1,6 @@
-##### Released API: [v0.10.1](https://github.com/GoogleChrome/puppeteer/blob/v0.10.1/docs/api.md) | [v0.10.0](https://github.com/GoogleChrome/puppeteer/blob/v0.10.0/docs/api.md) | [v0.9.0](https://github.com/GoogleChrome/puppeteer/blob/v0.9.0/docs/api.md)
+##### Released API: [v0.10.2](https://github.com/GoogleChrome/puppeteer/blob/v0.10.2/docs/api.md) | [v0.10.1](https://github.com/GoogleChrome/puppeteer/blob/v0.10.1/docs/api.md) | [v0.10.0](https://github.com/GoogleChrome/puppeteer/blob/v0.10.0/docs/api.md) | [v0.9.0](https://github.com/GoogleChrome/puppeteer/blob/v0.9.0/docs/api.md)
 
-# Puppeteer API v<!-- GEN:version -->0.10.2<!-- GEN:stop-->
+# Puppeteer API v<!-- GEN:version -->0.11.0-alpha<!-- GEN:stop-->
 
 ##### Table of Contents
 
@@ -10,6 +10,7 @@
   * [Environment Variables](#environment-variables)
   * [class: Puppeteer](#class-puppeteer)
     + [puppeteer.connect(options)](#puppeteerconnectoptions)
+    + [puppeteer.executablePath()](#puppeteerexecutablepath)
     + [puppeteer.launch([options])](#puppeteerlaunchoptions)
   * [class: Browser](#class-browser)
     + [browser.close()](#browserclose)
@@ -33,6 +34,7 @@
     + [page.$$(selector)](#pageselector)
     + [page.$eval(selector, pageFunction[, ...args])](#pageevalselector-pagefunction-args)
     + [page.addScriptTag(url)](#pageaddscripttagurl)
+    + [page.authenticate(credentials)](#pageauthenticatecredentials)
     + [page.click(selector[, options])](#pageclickselector-options)
     + [page.close()](#pageclose)
     + [page.content()](#pagecontent)
@@ -115,7 +117,6 @@
   * [class: ElementHandle](#class-elementhandle)
     + [elementHandle.click([options])](#elementhandleclickoptions)
     + [elementHandle.dispose()](#elementhandledispose)
-    + [elementHandle.evaluate(pageFunction, ...args)](#elementhandleevaluatepagefunction-args)
     + [elementHandle.hover()](#elementhandlehover)
     + [elementHandle.tap()](#elementhandletap)
     + [elementHandle.uploadFile(...filePaths)](#elementhandleuploadfilefilepaths)
@@ -173,6 +174,9 @@ puppeteer.launch().then(async browser => {
 - returns: <[Promise]<[Browser]>>
 
 This methods attaches Puppeteer to an existing Chromium instance.
+
+#### puppeteer.executablePath()
+- returns: <[string]> A path where Puppeteer expects to find bundled Chromium. Chromium might not exist there if the download was skipped with [`PUPPETEER_SKIP_CHROMIUM_DOWNLOAD`](#environment-variables).
 
 #### puppeteer.launch([options])
 - `options` <[Object]>  Set of configurable options to set on the browser. Can have the following fields:
@@ -332,7 +336,7 @@ Shortcut for [page.mainFrame().$$(selector)](#frameselector-1).
 #### page.$eval(selector, pageFunction[, ...args])
 - `selector` <[string]> A [selector] to query page for
 - `pageFunction` <[function]> Function to be evaluated in browser context
-- `...args` <...[Serializable]> Arguments to pass to `pageFunction`
+- `...args` <...[Serializable]|[ElementHandle]> Arguments to pass to `pageFunction`
 - returns: <[Promise]<[Serializable]>> Promise which resolves to the return value of `pageFunction`
 
 This method runs `document.querySelector` within the page and passes it as the first argument to `pageFunction`. If there's no element matching `selector`, the method throws an error.
@@ -356,6 +360,15 @@ Adds a `<script>` tag into the page with the desired url. Alternatively, a local
 
 Shortcut for [page.mainFrame().addScriptTag(url)](#frameaddscripttagurl).
 
+#### page.authenticate(credentials)
+- `credentials` <[Object]>
+  - `username` <[string]>
+  - `password` <[string]>
+- returns: <[Promise]>
+
+Provide credentials for [http authentication](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication).
+
+To disable authentication, pass `null`.
 
 #### page.click(selector[, options])
 - `selector` <[string]> A [selector] to search for element to click. If there are multiple elements satisfying the selector, the first will be clicked.
@@ -440,28 +453,29 @@ List of all available devices is available in the source code: [DeviceDescriptor
 
 #### page.evaluate(pageFunction, ...args)
 - `pageFunction` <[function]|[string]> Function to be evaluated in the page context
-- `...args` <...[Serializable]> Arguments to pass to `pageFunction`
+- `...args` <...[Serializable]|[ElementHandle]> Arguments to pass to `pageFunction`
 - returns: <[Promise]<[Serializable]>> Resolves to the return value of `pageFunction`
 
 If the function, passed to the `page.evaluate`, returns a [Promise], then `page.evaluate` would wait for the promise to resolve and return it's value.
 
 ```js
-const puppeteer = require('puppeteer');
-
-puppeteer.launch().then(async browser => {
-  const page = await browser.newPage();
-  const result = await page.evaluate(() => {
-    return Promise.resolve(8 * 7);
-  });
-  console.log(result); // prints "56"
-  browser.close();
+const result = await page.evaluate(() => {
+  return Promise.resolve(8 * 7);
 });
+console.log(result); // prints "56"
 ```
 
 A string can also be passed in instead of a function.
 
 ```js
 console.log(await page.evaluate('1 + 2')); // prints "3"
+```
+
+[ElementHandle] instances could be passed as arguments to the `page.evaluate`:
+```js
+const bodyHandle = await page.$('body');
+const html = await page.evaluate(body => body.innerHTML, bodyHandle);
+await bodyHandle.dispose();
 ```
 
 Shortcut for [page.mainFrame().evaluate(pageFunction, ...args)](#frameevaluatepagefunction-args).
@@ -1103,7 +1117,7 @@ The method runs `document.querySelectorAll` within the frame. If no elements mat
 #### frame.$eval(selector, pageFunction[, ...args])
 - `selector` <[string]> A [selector] to query frame for
 - `pageFunction` <[function]> Function to be evaluated in browser context
-- `...args` <...[Serializable]> Arguments to pass to `pageFunction`
+- `...args` <...[Serializable]|[ElementHandle]> Arguments to pass to `pageFunction`
 - returns: <[Promise]<[Serializable]>> Promise which resolves to the return value of `pageFunction`
 
 This method runs `document.querySelector` within the frame and passes it as the first argument to `pageFunction`. If there's no element matching `selector`, the method throws an error.
@@ -1128,28 +1142,29 @@ Adds a `<script>` tag to the frame with the desired url. Alternatively, JavaScri
 
 #### frame.evaluate(pageFunction, ...args)
 - `pageFunction` <[function]|[string]> Function to be evaluated in browser context
-- `...args` <...[Serializable]> Arguments to pass to  `pageFunction`
+- `...args` <...[Serializable]|[ElementHandle]> Arguments to pass to  `pageFunction`
 - returns: <[Promise]<[Serializable]>> Promise which resolves to function return value
 
-If the function, passed to the `page.evaluate`, returns a [Promise], then `page.evaluate` would wait for the promise to resolve and return it's value.
+If the function, passed to the `frame.evaluate`, returns a [Promise], then `frame.evaluate` would wait for the promise to resolve and return it's value.
 
 ```js
-const puppeteer = require('puppeteer');
-
-puppeteer.launch().then(async browser => {
-  const page = await browser.newPage();
-  const result = await page.mainFrame().evaluate(() => {
-    return Promise.resolve(8 * 7);
-  });
-  console.log(result); // prints "56"
-  browser.close();
+const result = await frame.evaluate(() => {
+  return Promise.resolve(8 * 7);
 });
+console.log(result); // prints "56"
 ```
 
 A string can also be passed in instead of a function.
 
 ```js
-console.log(await page.mainFrame().evaluate('1 + 2')); // prints "3"
+console.log(await frame.evaluate('1 + 2')); // prints "3"
+```
+
+[ElementHandle] instances could be passed as arguments to the `frame.evaluate`:
+```js
+const bodyHandle = await frame.$('body');
+const html = await frame.evaluate(body => body.innerHTML, bodyHandle);
+await bodyHandle.dispose();
 ```
 
 #### frame.injectFile(filePath)
@@ -1276,14 +1291,6 @@ If the element is detached from DOM, the method throws an error.
 
 The `elementHandle.dispose` method stops referencing the element handle.
 
-#### elementHandle.evaluate(pageFunction, ...args)
-- `pageFunction` <[function]> Function to be evaluated in browser context
-- `...args` <...[Serializable]> Arguments to pass to  `pageFunction`
-- returns: <[Promise]<[Serializable]>> Promise which resolves to function return value
-
-If the function, passed to the `elementHandle.evaluate`, returns a [Promise], then `elementHandle.evaluate` would wait for the promise to resolve and return it's value.
-The element will be passed as the first argument to `pageFunction`, followed by any `args`.
-
 #### elementHandle.hover()
 - returns: <[Promise]> Promise which resolves when the element is successfully hovered.
 
@@ -1314,6 +1321,7 @@ If request fails at some point, then instead of 'requestfinished' event (and pos
 If request gets a 'redirect' response, the request is successfully finished with the 'requestfinished' event, and a new request is  issued to a redirected url.
 
 #### request.abort()
+- returns: <[Promise]>
 
 Aborts request. To use this, request interception should be enabled with `page.setRequestInterceptionEnabled`.
 Exception is immediately thrown if the request interception is not enabled.
@@ -1324,6 +1332,7 @@ Exception is immediately thrown if the request interception is not enabled.
   - `method` <[string]> If set changes the request method (e.g. `GET` or `POST`)
   - `postData` <[string]> If set changes the post data of request
   - `headers` <[Object]> If set changes the request HTTP headers
+- returns: <[Promise]>
 
 Continues request with optional request overrides. To use this, request interception should be enabled with `page.setRequestInterceptionEnabled`.
 Exception is immediately thrown if the request interception is not enabled.

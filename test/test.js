@@ -17,7 +17,7 @@
 const fs = require('fs');
 const rm = require('rimraf').sync;
 const path = require('path');
-const helper = require('../lib/helper');
+const {helper} = require('../lib/helper');
 if (process.env.COVERAGE)
   helper.recordPublicAPICoverage();
 console.log('Testing on Node', process.version);
@@ -81,59 +81,64 @@ afterAll(SX(async function() {
   ]);
 }));
 
-describe('Browser', function() {
-  it('Browser.Options.ignoreHTTPSErrors', SX(async function() {
-    const options = Object.assign({ignoreHTTPSErrors: true}, defaultBrowserOptions);
-    const browser = await puppeteer.launch(options);
-    const page = await browser.newPage();
-    let error = null;
-    let response = null;
-    try {
-      response = await page.goto(HTTPS_PREFIX + '/empty.html');
-    } catch (e) {
-      error = e;
-    }
-    expect(error).toBe(null);
-    expect(response.ok).toBe(true);
-    browser.close();
-  }));
-  it('should reject all promises when browser is closed', SX(async function() {
-    const browser = await puppeteer.launch(defaultBrowserOptions);
-    const page = await browser.newPage();
-    let error = null;
-    const neverResolves = page.evaluate(() => new Promise(r => {})).catch(e => error = e);
-    browser.close();
-    await neverResolves;
-    expect(error.message).toContain('Protocol error');
-  }));
-  it('Puppeteer.connect', SX(async function() {
-    const originalBrowser = await puppeteer.launch(defaultBrowserOptions);
-    const browser = await puppeteer.connect({
-      browserWSEndpoint: originalBrowser.wsEndpoint()
-    });
-    const page = await browser.newPage();
-    expect(await page.evaluate(() => 7 * 8)).toBe(56);
-    originalBrowser.close();
-  }));
-  it('userDataDir option', SX(async function() {
-    const userDataDir = fs.mkdtempSync(path.join(__dirname, 'test-user-data-dir'));
-    const options = Object.assign({userDataDir}, defaultBrowserOptions);
-    const browser = await puppeteer.launch(options);
-    expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
-    browser.close();
-    expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
-    rm(userDataDir);
-  }));
-  it('userDataDir argument', SX(async function() {
-    const userDataDir = fs.mkdtempSync(path.join(__dirname, 'test-user-data-dir'));
-    const options = Object.assign({}, defaultBrowserOptions);
-    options.args = [`--user-data-dir=${userDataDir}`].concat(options.args);
-    const browser = await puppeteer.launch(options);
-    expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
-    browser.close();
-    expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
-    rm(userDataDir);
-  }));
+describe('Puppeteer', function() {
+  describe('Puppeteer.launch', function() {
+    it('should support ignoreHTTPSErrors option', SX(async function() {
+      const options = Object.assign({ignoreHTTPSErrors: true}, defaultBrowserOptions);
+      const browser = await puppeteer.launch(options);
+      const page = await browser.newPage();
+      let error = null;
+      const response = await page.goto(HTTPS_PREFIX + '/empty.html').catch(e => error = e);
+      expect(error).toBe(null);
+      expect(response.ok).toBe(true);
+      browser.close();
+    }));
+    it('should reject all promises when browser is closed', SX(async function() {
+      const browser = await puppeteer.launch(defaultBrowserOptions);
+      const page = await browser.newPage();
+      let error = null;
+      const neverResolves = page.evaluate(() => new Promise(r => {})).catch(e => error = e);
+      browser.close();
+      await neverResolves;
+      expect(error.message).toContain('Protocol error');
+    }));
+    it('userDataDir option', SX(async function() {
+      const userDataDir = fs.mkdtempSync(path.join(__dirname, 'test-user-data-dir'));
+      const options = Object.assign({userDataDir}, defaultBrowserOptions);
+      const browser = await puppeteer.launch(options);
+      expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
+      browser.close();
+      expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
+      rm(userDataDir);
+    }));
+    it('userDataDir argument', SX(async function() {
+      const userDataDir = fs.mkdtempSync(path.join(__dirname, 'test-user-data-dir'));
+      const options = Object.assign({}, defaultBrowserOptions);
+      options.args = [`--user-data-dir=${userDataDir}`].concat(options.args);
+      const browser = await puppeteer.launch(options);
+      expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
+      browser.close();
+      expect(fs.readdirSync(userDataDir).length).toBeGreaterThan(0);
+      rm(userDataDir);
+    }));
+  });
+  describe('Puppeteer.connect', function() {
+    it('should work', SX(async function() {
+      const originalBrowser = await puppeteer.launch(defaultBrowserOptions);
+      const browser = await puppeteer.connect({
+        browserWSEndpoint: originalBrowser.wsEndpoint()
+      });
+      const page = await browser.newPage();
+      expect(await page.evaluate(() => 7 * 8)).toBe(56);
+      originalBrowser.close();
+    }));
+  });
+  describe('Puppeteer.executablePath', function() {
+    it('should work', SX(async function() {
+      const executablePath = puppeteer.executablePath();
+      expect(fs.existsSync(executablePath)).toBe(true);
+    }));
+  });
 });
 
 describe('Page', function() {
@@ -176,11 +181,7 @@ describe('Page', function() {
       const neverResolves = newPage.evaluate(() => new Promise(r => {}));
       newPage.close();
       let error = null;
-      try {
-        await neverResolves;
-      } catch (e) {
-        error = e;
-      }
+      await neverResolves.catch(e => error = e);
       expect(error.message).toContain('Protocol error');
     }));
   });
@@ -216,11 +217,7 @@ describe('Page', function() {
     }));
     it('should reject promise with exception', SX(async function() {
       let error = null;
-      try {
-        await page.evaluate(() => not.existing.object.property);
-      } catch (e) {
-        error = e;
-      }
+      await page.evaluate(() => not.existing.object.property).catch(e => error = e);
       expect(error).toBeTruthy();
       expect(error.message).toContain('not is not defined');
     }));
@@ -246,6 +243,10 @@ describe('Page', function() {
       const result = await page.evaluate(() => -Infinity);
       expect(Object.is(result, -Infinity)).toBe(true);
     }));
+    it('should accept "undefined" as one of multiple parameters', SX(async function() {
+      const result = await page.evaluate((a, b) => Object.is(a, undefined) && Object.is(b, 'foo'), undefined, 'foo');
+      expect(result).toBe(true);
+    }));
     it('should not fail for window object', SX(async function() {
       const result = await page.evaluate(() => window);
       expect(result).toBe('Window');
@@ -261,6 +262,30 @@ describe('Page', function() {
     it('should accept a string with comments', SX(async function() {
       const result = await page.evaluate('2 + 5;\n// do some math!');
       expect(result).toBe(7);
+    }));
+    it('should accept element handle as an argument', SX(async function() {
+      await page.setContent('<section>42</section>');
+      const element = await page.$('section');
+      const text = await page.evaluate(e => e.textContent, element);
+      expect(text).toBe('42');
+    }));
+    it('should throw if underlying element was disposed', SX(async function() {
+      await page.setContent('<section>39</section>');
+      const element = await page.$('section');
+      expect(element).toBeTruthy();
+      await element.dispose();
+      let error = null;
+      await page.evaluate(e => e.textContent, element).catch(e => error = e);
+      expect(error.message).toContain('ElementHandle is disposed');
+    }));
+    it('should throw if elementHandles are from other frames', SX(async function() {
+      const FrameUtils = require('./frame-utils');
+      await FrameUtils.attachFrame(page, 'frame1', EMPTY_PAGE);
+      const bodyHandle = await page.frames()[1].$('body');
+      let error = null;
+      await page.evaluate(body => body.innerHTML, bodyHandle).catch(e => error = e);
+      expect(error).toBeTruthy();
+      expect(error.message).toContain('ElementHandles passed as arguments should belong');
     }));
   });
 
@@ -427,12 +452,9 @@ describe('Page', function() {
         document.querySelector = null;
       });
       await page.goto(EMPTY_PAGE);
-      try {
-        await page.waitForSelector('*');
-        fail('Failed waitForSelector did not throw.');
-      } catch (e) {
-        expect(e.message).toContain('document.querySelector is not a function');
-      }
+      let error = null;
+      await page.waitForSelector('*').catch(e => error = e);
+      expect(error.message).toContain('document.querySelector is not a function');
     }));
     it('should throw when frame is detached', SX(async function() {
       await FrameUtils.attachFrame(page, 'frame1', EMPTY_PAGE);
@@ -504,12 +526,9 @@ describe('Page', function() {
       await watchdog;
     }));
     it('should throw when unknown type', SX(async function() {
-      try {
-        await page.waitFor({foo: 'bar'});
-        fail('Failed to throw exception');
-      } catch (e) {
-        expect(e.message).toContain('Unsupported target type');
-      }
+      let error = null;
+      await page.waitFor({foo: 'bar'}).catch(e => error = e);
+      expect(error.message).toContain('Unsupported target type');
     }));
   });
 
@@ -567,11 +586,7 @@ describe('Page', function() {
     }));
     it('should fail when navigating to bad url', SX(async function() {
       let error = null;
-      try {
-        await page.goto('asdfasdf');
-      } catch (e) {
-        error = e;
-      }
+      await page.goto('asdfasdf').catch(e => error = e);
       expect(error.message).toContain('Cannot navigate to invalid URL');
     }));
     it('should fail when navigating to bad SSL', SX(async function() {
@@ -581,32 +596,25 @@ describe('Page', function() {
       page.on('requestfinished', request => expect(request).toBeTruthy());
       page.on('requestfailed', request => expect(request).toBeTruthy());
       let error = null;
-      try {
-        await page.goto(HTTPS_PREFIX + '/empty.html');
-      } catch (e) {
-        error = e;
-      }
+      await page.goto(HTTPS_PREFIX + '/empty.html').catch(e => error = e);
       expect(error.message).toContain('SSL Certificate error');
     }));
     it('should fail when main resources failed to load', SX(async function() {
       let error = null;
-      try {
-        await page.goto('http://localhost:44123/non-existing-url');
-      } catch (e) {
-        error = e;
-      }
+      await page.goto('http://localhost:44123/non-existing-url').catch(e => error = e);
       expect(error.message).toContain('Failed to navigate');
     }));
     it('should fail when exceeding maximum navigation timeout', SX(async function() {
-      let error = null;
+      let hasUnhandledRejection = false;
+      const unhandledRejectionHandler = () => hasUnhandledRejection = true;
+      process.on('unhandledRejection', unhandledRejectionHandler);
       // Hang for request to the empty.html
       server.setRoute('/empty.html', (req, res) => { });
-      try {
-        await page.goto(PREFIX + '/empty.html', {timeout: 59});
-      } catch (e) {
-        error = e;
-      }
-      expect(error.message).toContain('Navigation Timeout Exceeded: 59ms');
+      let error = null;
+      await page.goto(PREFIX + '/empty.html', {timeout: 1}).catch(e => error = e);
+      expect(hasUnhandledRejection).toBe(false);
+      expect(error.message).toContain('Navigation Timeout Exceeded: 1ms');
+      process.removeListener('unhandledRejection', unhandledRejectionHandler);
     }));
     it('should work when navigating to valid url', SX(async function() {
       const response = await page.goto(EMPTY_PAGE);
@@ -874,11 +882,7 @@ describe('Page', function() {
       await page.setRequestInterceptionEnabled(true);
       page.on('request', request => request.abort());
       let error = null;
-      try {
-        await page.goto(EMPTY_PAGE);
-      } catch (e) {
-        error = e;
-      }
+      await page.goto(EMPTY_PAGE).catch(e => error = e);
       expect(error).toBeTruthy();
       expect(error.message).toContain('Failed to navigate');
     }));
@@ -985,6 +989,20 @@ describe('Page', function() {
       expect(response.status).toBe(200);
       expect(requests.length).toBe(2);
       expect(requests[1].response().status).toBe(404);
+    }));
+    it('should not throw "Invalid Interception Id" if the request was cancelled', SX(async function() {
+      await page.setContent('<iframe></iframe>');
+      await page.setRequestInterceptionEnabled(true);
+      let request = null;
+      page.on('request', async r => request = r);
+      page.$eval('iframe', (frame, url) => frame.src = url, EMPTY_PAGE),
+      // Wait for request interception.
+      await waitForEvents(page, 'request');
+      // Delete frame to cause request to be canceled.
+      await page.$eval('iframe', frame => frame.remove());
+      let error = null;
+      await request.continue().catch(e => error = e);
+      expect(error).toBe(null);
     }));
   });
 
@@ -1132,6 +1150,12 @@ describe('Page', function() {
       const text = await page.$eval('section', (e, suffix) => e.textContent + suffix, ' world!');
       expect(text).toBe('hello world!');
     }));
+    it('should accept ElementHandles as arguments', SX(async function() {
+      await page.setContent('<section>hello</section><div> world</div>');
+      const divHandle = await page.$('div');
+      const text = await page.$eval('section', (e, div) => e.textContent + div.textContent, divHandle);
+      expect(text).toBe('hello world');
+    }));
     it('should throw error if no element is found', SX(async function() {
       let error = null;
       await page.$eval('section', e => e.id).catch(e => error = e);
@@ -1155,55 +1179,13 @@ describe('Page', function() {
       await page.setContent('<div>A</div><br/><div>B</div>');
       const elements = await page.$$('div');
       expect(elements.length).toBe(2);
-      const promises = elements.map(element => element.evaluate(e => e.textContent));
+      const promises = elements.map(element => page.evaluate(e => e.textContent, element));
       expect(await Promise.all(promises)).toEqual(['A', 'B']);
     }));
     it('should return empty array if nothing is found', SX(async function() {
       await page.goto(EMPTY_PAGE);
       const elements = await page.$$('div');
       expect(elements.length).toBe(0);
-    }));
-  });
-
-  describe('ElementHandle.evaluate', function() {
-    it('should work', SX(async function() {
-      await page.setContent('<section>42</section>');
-      const element = await page.$('section');
-      const text = await element.evaluate(e => e.textContent);
-      expect(text).toBe('42');
-    }));
-    it('should await promise if any', SX(async function() {
-      await page.setContent('<section>39</section>');
-      const element = await page.$('section');
-      const text = await element.evaluate(e => Promise.resolve(e.textContent));
-      expect(text).toBe('39');
-    }));
-    it('should throw if underlying page got closed', SX(async function() {
-      const otherPage = await browser.newPage();
-      await otherPage.setContent('<section>88</section>');
-      const element = await otherPage.$('section');
-      expect(element).toBeTruthy();
-      await otherPage.close();
-      let error = null;
-      try {
-        await element.evaluate(e => e.textContent);
-      } catch (e) {
-        error = e;
-      }
-      expect(error.message).toContain('Session closed');
-    }));
-    it('should throw if underlying element was disposed', SX(async function() {
-      await page.setContent('<section>39</section>');
-      const element = await page.$('section');
-      expect(element).toBeTruthy();
-      await element.dispose();
-      let error = null;
-      try {
-        await element.evaluate(e => e.textContent);
-      } catch (e) {
-        error = e;
-      }
-      expect(error.message).toContain('ElementHandle is disposed');
     }));
   });
 
@@ -1233,12 +1215,9 @@ describe('Page', function() {
     }));
     it('should fail to click a missing button', SX(async function() {
       await page.goto(PREFIX + '/input/button.html');
-      try {
-        await page.click('button.does-not-exist');
-        fail('Clicking the button did not throw.');
-      } catch (error) {
-        expect(error.message).toBe('No node found for selector: button.does-not-exist');
-      }
+      let error = null;
+      await page.click('button.does-not-exist').catch(e => error = e);
+      expect(error.message).toBe('No node found for selector: button.does-not-exist');
     }));
     // @see https://github.com/GoogleChrome/puppeteer/issues/161
     it('should not hang with touch-enabled viewports', SX(async function() {
@@ -1265,13 +1244,13 @@ describe('Page', function() {
       const filePath = path.relative(process.cwd(), __dirname + '/assets/file-to-upload.txt');
       const input = await page.$('input');
       await input.uploadFile(filePath);
-      expect(await input.evaluate(e => e.files[0].name)).toBe('file-to-upload.txt');
-      expect(await input.evaluate(e => {
+      expect(await page.evaluate(e => e.files[0].name, input)).toBe('file-to-upload.txt');
+      expect(await page.evaluate(e => {
         const reader = new FileReader();
         const promise = new Promise(fulfill => reader.onload = fulfill);
         reader.readAsText(e.files[0]);
         return promise.then(() => reader.result);
-      })).toBe('contents of the file');
+      }, input)).toBe('contents of the file');
     }));
     it('should move with the arrow keys', SX(async function(){
       await page.goto(PREFIX + '/input/textarea.html');
@@ -1514,7 +1493,7 @@ describe('Page', function() {
       await page.tap('button');
       expect(await page.evaluate(() => result)).toBe('Clicked');
     }));
-    it('should report touches', SX(async function() {
+    xit('should report touches', SX(async function() {
       await page.goto(PREFIX + '/input/touches.html');
       const button = await page.$('button');
       await button.tap();
@@ -1554,6 +1533,43 @@ describe('Page', function() {
       page.goto(EMPTY_PAGE);
       const request = await server.waitForRequest('/empty.html');
       expect(request.headers['foo']).toBe('bar');
+    }));
+  });
+  describe('Page.authenticate', function() {
+    it('should work', SX(async function() {
+      server.setAuth('/empty.html', 'user', 'pass');
+      let response = await page.goto(EMPTY_PAGE);
+      expect(response.status).toBe(401);
+      await page.authenticate({
+        username: 'user',
+        password: 'pass'
+      });
+      response = await page.reload();
+      expect(response.status).toBe(200);
+    }));
+    it('should fail if wrong credentials', SX(async function() {
+      // Use unique user/password since Chrome caches credentials per origin.
+      server.setAuth('/empty.html', 'user2', 'pass2');
+      await page.authenticate({
+        username: 'foo',
+        password: 'bar'
+      });
+      const response = await page.goto(EMPTY_PAGE);
+      expect(response.status).toBe(401);
+    }));
+    it('should allow disable authentication', SX(async function() {
+      // Use unique user/password since Chrome caches credentials per origin.
+      server.setAuth('/empty.html', 'user3', 'pass3');
+      await page.authenticate({
+        username: 'user3',
+        password: 'pass3'
+      });
+      let response = await page.goto(EMPTY_PAGE);
+      expect(response.status).toBe(200);
+      await page.authenticate(null);
+      // Navigate to a different origin to bust Chrome's credential caching.
+      response = await page.goto(CROSS_PROCESS_PREFIX + '/empty.html');
+      expect(response.status).toBe(401);
     }));
   });
   describe('Page.setContent', function() {
@@ -1799,11 +1815,7 @@ describe('Page', function() {
       await page.setJavaScriptEnabled(false);
       await page.goto('data:text/html, <script>var something = "forbidden"</script>');
       let error = null;
-      try {
-        await page.evaluate('something');
-      } catch (e) {
-        error = e;
-      }
+      await page.evaluate('something').catch(e => error = e);
       expect(error.message).toContain('something is not defined');
 
       await page.setJavaScriptEnabled(true);
@@ -2008,11 +2020,7 @@ describe('Page', function() {
       await page.tracing.start({path: outputFile});
       const newPage = await browser.newPage();
       let error = null;
-      try {
-        await newPage.tracing.start({path: outputFile});
-      } catch (e) {
-        error = e;
-      }
+      await newPage.tracing.start({path: outputFile}).catch(e => error = e);
       await newPage.close();
       expect(error).toBeTruthy();
       await page.tracing.stop();
@@ -2047,7 +2055,8 @@ describe('Page', function() {
         value: '123456'
       });
       expect(await page.evaluate('document.cookie')).toBe('username=John Doe; password=123456');
-      expect(await page.cookies()).toEqual([{
+      const cookies = await page.cookies();
+      expect(cookies.sort((a, b) => a.name.localeCompare(b.name))).toEqual([{
         name: 'password',
         value: '123456',
         domain: 'localhost',
