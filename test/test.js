@@ -1514,8 +1514,10 @@ describe('Page', function() {
     it('should work', SX(async function() {
       expect(await page.evaluate(() => navigator.userAgent)).toContain('Mozilla');
       page.setUserAgent('foobar');
-      page.goto(EMPTY_PAGE);
-      const request = await server.waitForRequest('/empty.html');
+      const [request] = await Promise.all([
+        server.waitForRequest('/empty.html'),
+        page.goto(EMPTY_PAGE),
+      ]);
       expect(request.headers['user-agent']).toBe('foobar');
     }));
     it('should emulate device user-agent', SX(async function() {
@@ -1530,9 +1532,20 @@ describe('Page', function() {
       await page.setExtraHTTPHeaders({
         foo: 'bar'
       });
-      page.goto(EMPTY_PAGE);
-      const request = await server.waitForRequest('/empty.html');
+      const [request] = await Promise.all([
+        server.waitForRequest('/empty.html'),
+        page.goto(EMPTY_PAGE),
+      ]);
       expect(request.headers['foo']).toBe('bar');
+    }));
+    it('should throw for non-string header values', SX(async function() {
+      let error = null;
+      try {
+        await page.setExtraHTTPHeaders({ 'foo': 1 });
+      } catch (e) {
+        error = e;
+      }
+      expect(error.message).toBe('Expected value of header "foo" to be String, but "number" is found.');
     }));
   });
   describe('Page.authenticate', function() {

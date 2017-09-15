@@ -147,11 +147,10 @@ Puppeteer is a Node library which provides a high-level API to control Chromium 
 
 ### Environment Variables
 
-Puppeteer looks for certain environment variables to aid its operations:
+Puppeteer looks for certain [environment variables](https://en.wikipedia.org/wiki/Environment_variable) to aid its operations:
 
 - `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` - defines HTTP proxy settings that are used to download and run Chromium.
 - `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` - do not download bundled Chromium during installation step.
-
 ### class: Puppeteer
 
 Puppeteer module provides a method to launch a Chromium instance.
@@ -743,7 +742,7 @@ Shortcut for [`keyboard.down`](#keyboarddownkey-options) and [`keyboard.up`](#ke
 - returns: <[Promise]>
 
 #### page.setExtraHTTPHeaders(headers)
-- `headers` <[Object]> An object containing additional http headers to be sent with every request.
+- `headers` <[Object]> An object containing additional http headers to be sent with every request. All header values must be strings.
 - returns: <[Promise]>
 
 The extra HTTP headers will be sent with every request the page initiates.
